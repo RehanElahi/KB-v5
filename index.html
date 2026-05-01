@@ -61,7 +61,7 @@
     .header-text h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; color: white; }
     .header-text p { font-size: 13px; color: rgba(255,255,255,0.72); margin-top: 1px; }
 
-    .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 16px calc(env(safe-area-inset-bottom, 0) + 80px); }
+    .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 16px calc(env(safe-area-inset-bottom, 0) + 120px); }
 
     .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-hint); margin: 18px 0 8px; }
     .section-label:first-child { margin-top: 2px; }
@@ -115,6 +115,12 @@
     .body-section ul, .body-section ol { padding-left: 1.2rem; font-size: 14px; color: var(--text-secondary); line-height: 1.75; }
     .body-section li { margin-bottom: 2px; }
     .error-box { background: var(--red-bg); color: var(--red-text); border-radius: var(--radius-md); padding: 14px; font-size: 14px; margin-top: 16px; line-height: 1.5; }
+    
+    .planner-box { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+    .planner-row { display: flex; gap: 8px; align-items: center; }
+    .planner-select { flex: 1; height: 36px; padding: 0 8px; background: var(--bg-surface); border: 1px solid var(--border-mid); border-radius: var(--radius-md); color: var(--text-primary); font-size: 13px; outline: none; }
+    .planner-btn { height: 36px; padding: 0 12px; background: var(--green-mid); color: white; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; }
+    .planner-btn:active { background: var(--green-dark); }
   </style>
 </head>
 <body>
@@ -130,13 +136,11 @@
 </header>
 
 <div class="scroll-area">
-
   <div class="section-label">What's in your fridge?</div>
   <div class="input-row">
     <input type="text" id="ing-input" placeholder="e.g. gosht, aloo, dahi…" autocomplete="off" autocorrect="off" autocapitalize="off" />
     <button class="add-btn" onclick="addIng()">Add</button>
   </div>
-
   <div class="section-label">Quick add</div>
   <div class="quick-chips" id="chips">
     <span class="chip" onclick="qa(this,'chicken')"><span class="en">Chicken</span><span class="ur">مرغی</span></span>
@@ -170,12 +174,9 @@
     <span class="chip" onclick="qa(this,'vermicelli')"><span class="en">Vermicelli</span><span class="ur">سویاں</span></span>
     <span class="chip" onclick="qa(this,'bread')"><span class="en">Bread</span><span class="ur">ڈبل روٹی</span></span>
   </div>
-
   <div class="section-label">Selected ingredients</div>
   <div class="tags" id="tags"></div>
-
   <div id="results"></div>
-
 </div>
 
 <div class="find-bar">
@@ -183,11 +184,12 @@
 </div>
 
 <script>
+  // FIXED: Changed to v1 endpoint and ensured model is gemini-1.5-flash
   const GEMINI_KEY = 'AIzaSyB5dVIYhWERDZ5Jfb0IEDQv2P3B2WOKMLg';
-  // FIXED: Changed to gemini-1.5-flash to avoid experimental quota locks
-  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
 
   let ings = [];
+  let generatedRecipes = [];
   const input = document.getElementById('ing-input');
   const tagsEl = document.getElementById('tags');
   const findBtn = document.getElementById('find-btn');
@@ -248,19 +250,18 @@ Respond ONLY with a valid JSON array, no markdown, no backticks:
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
       const text = data.candidates[0].content.parts[0].text;
-      const recipes = JSON.parse(text.replace(/```json|```/g, '').trim());
-      renderRecipes(recipes);
+      generatedRecipes = JSON.parse(text.replace(/```json|```/g, '').trim());
+      renderRecipes(generatedRecipes);
     } catch (err) {
-      resultsEl.innerHTML = `<div class="error-box">Couldn't load recipes. Please check your connection and try again.<br><br><small>${err.message}</small></div>`;
+      resultsEl.innerHTML = `<div class="error-box">API Error: ${err.message}</div>`;
     }
-
     findBtn.disabled = false;
     findBtn.textContent = `Find recipes with ${ings.length} ingredient${ings.length > 1 ? 's' : ''} →`;
   }
 
   function renderRecipes(recipes) {
-    if (!recipes?.length) { resultsEl.innerHTML = `<div class="error-box">No recipes found. Try adding more ingredients!</div>`; return; }
-    resultsEl.innerHTML = `<div class="results-header">${recipes.length} recipes found for you</div>` +
+    if (!recipes?.length) { resultsEl.innerHTML = `<div class="error-box">No recipes found.</div>`; return; }
+    resultsEl.innerHTML = `<div class="results-header">${recipes.length} recipes found</div>` +
       recipes.map((r, i) => {
         const ready = !r.missing?.length;
         return `<div class="recipe-card" id="rc${i}">
@@ -269,20 +270,19 @@ Respond ONLY with a valid JSON array, no markdown, no backticks:
             <div class="recipe-info">
               <div class="recipe-name">${r.name}</div>
               <div class="recipe-meta">${r.time} · ${r.difficulty}</div>
-              <span class="recipe-badge ${ready ? 'badge-ready' : 'badge-needs'}">${ready ? '✓ Ready to cook' : 'Needs: ' + r.missing.slice(0,2).join(', ') + (r.missing.length > 2 ? '…' : '')}</span>
+              <span class="recipe-badge ${ready ? 'badge-ready' : 'badge-needs'}">${ready ? '✓ Ready' : 'Needs: ' + r.missing.join(', ')}</span>
             </div>
             <svg class="recipe-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l5 5 5-5"/></svg>
           </div>
           <div class="recipe-body">
             <div class="body-section"><div class="body-title">Ingredients</div><ul>${r.ingredients.map(x => `<li>${x}</li>`).join('')}</ul></div>
-            <div class="body-section"><div class="body-title">How to make it</div><ol>${r.steps.map(x => `<li>${x}</li>`).join('')}</ol></div>
+            <div class="body-section"><div class="body-title">How to make</div><ol>${r.steps.map(x => `<li>${x}</li>`).join('')}</ol></div>
           </div>
         </div>`;
       }).join('');
   }
 
   function tog(i) { document.getElementById('rc' + i).classList.toggle('open'); }
-
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
