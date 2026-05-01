@@ -1,4 +1,4 @@
-const CACHE = 'kya-banaun-v2';
+const CACHE = 'kya-banaun-v3'; // Version 3
 const ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -14,7 +14,7 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('api.anthropic.com')) return;
+  if (e.request.url.includes('googleapis.com')) return; // Don't cache API calls
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
