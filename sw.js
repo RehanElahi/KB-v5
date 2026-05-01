@@ -1,4 +1,4 @@
-const CACHE = 'kya-banaun-v3'; // Version 3
+const CACHE = 'kya-banaun-v4'; // BUMPED TO V4
 const ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -14,7 +14,8 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('googleapis.com')) return; // Don't cache API calls
+  // Never cache the Google API calls
+  if (e.request.url.includes('googleapis.com')) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
